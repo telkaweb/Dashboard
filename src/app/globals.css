@@ -1,0 +1,27 @@
+/* src/app/globals.css */
+@font-face {
+    font-family: 'YekanBakh';
+    src: url('/fonts/YekanBakhFaNum-Bold.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+  }
+  
+  @font-face {
+    font-family: 'YekanBakh';
+    src: url('/fonts/YekanBakhFaNum-Regular.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+  }
+  
+  body {
+    font-family: 'YekanBakh', sans-serif;
+  }
+  
+  .ql-editor {
+    text-align: right !important;
+    direction: rtl;
+  }
+
+  .ql-editor p{
+    font-weight: 12px;
+  }
