@@ -30,7 +30,6 @@ import {
 // Project Imports (Absolute)
 import Toast from "src/components/toast/Toast";
 import { paths } from "src/routes/paths";
-import { useParams } from "src/routes/hook";
 import { FeederItem, FeederFilters, FeederFilterValue } from "src/types/feeder";
 import { useSettingsContext } from "src/components/settings";
 import { SelectChangeEvent } from '@mui/material/Select';

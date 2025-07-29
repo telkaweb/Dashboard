@@ -265,7 +265,7 @@ export default function BlogNewEditForm({ currentPost }: Props) {
       aiseo: typeof currentPost?.seo?.status === 'boolean' ? currentPost?.seo.status : false, // Ensure it's a boolean
       images: existingFiles ?? []
     }),
-    [currentPost,categoryList]
+    [currentPost,categoryList,existingFiles]
   );
   
   const [status, setStatusContent] = useState<number>(1); // 0 means inactive, 1 means active
