@@ -67,9 +67,18 @@ interface UploadResponse {
   }
 }
 
+type UploadedFile = {
+  unique_key?: string;
+  name: string;
+  preview: string;
+  size: string;
+  existing: boolean;
+};
+
+
 interface FormValuesProps extends Omit<IBlogItem, 'images' | 'coverUrl'> {
   coverUrl: CustomFile | string | null;
-  images: (CustomFile | string)[];
+  images: (CustomFile | UploadedFile | string)[];
 }
 
 export const fetchData = async (accessToken: string | null,routApi: string ) => {
@@ -159,6 +168,8 @@ export default function BlogNewEditForm({ currentPost }: Props) {
 
   const [uploadProgress, setUploadProgress] = useState<number>(0);
 
+  const [existingFiles, setExistingFiles] = useState<UploadedFile[]>([]);
+
   // const handleSwitchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
   //   setIsSwitchOn(event.target.checked);
   // };
@@ -172,19 +183,6 @@ export default function BlogNewEditForm({ currentPost }: Props) {
     }, 3000);
   }, [setMessage, setOpen, setSeverity]);
 
-  // const findUniqueKeyByCategoryId = (
-  //   category: any,
-  //   categories: Category[]
-  // ): string => {
-  //   const parentMatch = categories.find(group => group.unique_key === category.unique_key);
-  //   if (parentMatch) return parentMatch.unique_key;
-
-  //   for (const group of categories) {
-  //     const childMatch = group.classify?.find(c => c.unique_key === category.unique_key);
-  //     if (childMatch) return childMatch.unique_key;
-  //   }
-  //   return '';
-  // };
   const findUniqueKeyByCategoryId = (
     category: any,
     categories: Category[]
@@ -228,7 +226,7 @@ export default function BlogNewEditForm({ currentPost }: Props) {
   const NewPostSchema = Yup.object().shape({
     title: Yup.string().required(t('required.title') ?? 'Title is required'),
     description: Yup.string().required(t('required.description') ?? "Description is required"),
-    tags: Yup.array().min(2, t('required.min_tags') ?? 'Must have at least 2 tags'),
+    // tags: Yup.array().min(2, t('required.min_tags') ?? 'Must have at least 2 tags'),
     coverUrl: Yup.mixed().required('Cover is required'),
     category: Yup.string().required( t('required.category') ??'Category is required'),
   });
@@ -265,6 +263,7 @@ export default function BlogNewEditForm({ currentPost }: Props) {
       slug: currentPost?.slug || '',
       status: currentPost?.status ?? 2, // Ensures correct default for status
       aiseo: typeof currentPost?.seo?.status === 'boolean' ? currentPost?.seo.status : false, // Ensure it's a boolean
+      images: existingFiles ?? []
     }),
     [currentPost,categoryList]
   );
@@ -289,8 +288,19 @@ export default function BlogNewEditForm({ currentPost }: Props) {
   useEffect(() => {
     if (currentPost) {
       reset(defaultValues);
+
+      const files = currentPost?.files.map((file) => ({
+        unique_key: file.unique_key,
+        name: file.name,
+        preview: file.path,
+        size: file.size,
+        existing: true,
+      }));
+
+      setExistingFiles(files);
+
     }
-  }, [currentPost, defaultValues, reset]);
+  }, [currentPost, defaultValues, reset,setExistingFiles]);
 
   const onSubmit = useCallback(
     (data: FormValuesProps) => {
@@ -310,8 +320,12 @@ export default function BlogNewEditForm({ currentPost }: Props) {
   
           showToast(responseReq?.status?.message ?? "Please upload one video for selected post!", "success");
   
-          reset();
-          window.location.reload();
+          if(responseReq?.status?.code === 200){
+            if(!currentPost){
+              reset();
+              window.location.reload();
+            }
+          }
         } catch (error) {
           showToast(error?.status?.message ?? "Error Request!", "error");
         }
@@ -501,43 +515,66 @@ export default function BlogNewEditForm({ currentPost }: Props) {
 
   
   const handleRemoveFileGallery = useCallback(
-    (inputFile: File | string) => {
+    async (inputFile: File | string) => {
       let fileName: string;
+      let uniqueKey: string | undefined;
 
-      if (inputFile instanceof File) {
-        fileName = inputFile.name;
-      } else if (typeof inputFile === 'string') {
-        // If it's a string, use it directly
+      if (typeof inputFile === 'string') {
         fileName = inputFile;
+      } else if (inputFile instanceof File) {
+        fileName = inputFile.name;
+      } else if (typeof inputFile === 'object' && 'name' in inputFile) {
+        fileName = (inputFile as any).name;
+        uniqueKey = (inputFile as any).unique_key;
       } else {
-        // Handle any unexpected input
         console.error('Invalid inputFile type:', inputFile);
         return;
       }
 
-      const normalizeName = (name: string) => name.trim().replace(/\s+/g, ' ').normalize('NFC');
+      const normalizeName = (name: string) =>
+        name.trim().replace(/\s+/g, ' ').normalize('NFC');
 
-      // If inputFile is a File object, remove the corresponding ID from uploadedFileIds
-      if (inputFile instanceof File) {
-        setUploadedFileIds((prevIds) => {
-          if (prevIds && typeof prevIds === 'object') {
-            // Create a copy of the object
-            const updatedIds: { [key: string]: string } = { ...prevIds }; // Explicitly typing as an object with string keys
+      const normalizedFileName = normalizeName(fileName);
 
-            // Delete the key (file name) from the object
-            delete updatedIds[normalizeName(fileName)];
+      try {
+        if (uniqueKey) {
+          const link = API_ENDPOINTS.upload.delete(uniqueKey);
 
-            return updatedIds; // Return the updated object with the file name removed
+          const responseReq = await sendRequest(accessToken, link, {});
+
+          if (responseReq?.status?.code !== 200) {
+            alert('خطا در حذف فایل از سرور');
+            return;
           }
-          return prevIds; // If not an object, return prevIds as is
-        });
+
+          setUploadedFileIds((prevIds) => {
+            const updatedIds = { ...prevIds };
+            delete updatedIds[normalizedFileName];
+            return updatedIds;
+          });
+        }
+
+          const filtered = values.images?.filter((file) => {
+            const fileNameToCompare = (() => {
+              if (typeof file === 'string') {
+                return file;
+              }
+
+              if (typeof file === 'object' && 'name' in file) {
+                return (file as any).name;
+              }
+
+              return '';
+            })();
+
+            return normalizeName(fileNameToCompare) !== normalizedFileName;
+          });
+          setValue('images', filtered);
+      } catch (error) {
+        console.error('Error deleting file from backend:', error);
       }
-
-      const filtered = values.images && values.images?.filter((file) => file !== inputFile);
-      setValue('images', filtered);
-
     },
-    [setValue, values.images,setUploadedFileIds]
+    [setValue, values.images, setUploadedFileIds, accessToken]
   );
 
   const handleRemoveAllFiles = useCallback(() => {
@@ -695,157 +732,6 @@ export default function BlogNewEditForm({ currentPost }: Props) {
     </Grid>
   );
 
-  // const RenderSeo = () => {
-  //   const { watch, register } = useFormContext();
-  //   const aiseoValue = watch('aiseo');
-
-  //   return (
-  //     <Stack spacing={3}>
-  //       <FormControlLabel
-  //         control={<Switch {...register('aiseo')} checked={!!aiseoValue} />}
-  //         label={t('seo.ai') ?? "Enable ai generate"}
-  //       />
-
-  //       <Stack spacing={2}>
-  //         <RHFTextField
-  //           name="metaTitle"
-  //           label="Meta title"
-  //           sx={{ display: aiseoValue ? 'none' : 'block' }}
-  //         />
-  //         <RHFTextField
-  //           name="slug"
-  //           label="Slug"
-  //           sx={{ display: aiseoValue ? 'none' : 'block' }}
-  //         />
-  //         <RHFTextField
-  //           name="ogTitle"
-  //           label="OG Title"
-  //           sx={{ display: aiseoValue ? 'none' : 'block' }}
-  //         />
-  //         <RHFTextField
-  //           name="metaKeywords"
-  //           label="Meta Keywords"
-  //           sx={{ display: aiseoValue ? 'none' : 'block' }}
-  //         />
-  //         <RHFTextField
-  //           name="metaDescription"
-  //           label="Meta Description"
-  //           sx={{ display: aiseoValue ? 'none' : 'block' }}
-  //         />
-  //         <RHFTextField
-  //           name="ogDescription"
-  //           label="OG Description"
-  //           sx={{ display: aiseoValue ? 'none' : 'block' }}
-  //         />
-  //         <RHFTextField
-  //           name="schema"
-  //           label="Schema"
-  //           sx={{ display: aiseoValue ? 'none' : 'block' }}
-  //         />
-  //       </Stack>
-  //     </Stack>
-  //   );
-  // };
-
-
-  // const renderSeo = (
-  //   <Grid xs={12} md={12}>
-  //     {/* Conditionally render CardHeader for mobile view */}
-  //     {!mdUp && <CardHeader title="Properties" />}
-
-  //     <Stack spacing={3} sx={{ p: 2 }}>
-  //       <FormControlLabel
-  //         name="aiseo"
-  //         control={<Switch checked={isSwitchOn} onChange={handleSwitchChange} />}
-  //         label={t('seo.ai') ?? "Enable ai generate"}
-  //       />
-  //       <Box
-  //         columnGap={2}
-  //         rowGap={3}
-  //         display="grid"
-  //         gridTemplateColumns={{
-  //           xs: 'repeat(1, 1fr)',
-  //           md: 'repeat(2, 1fr)',
-  //         }}
-  //       >
-  //         <RHFTextField
-  //           name="metaTitle"
-  //           label={t('seo.meta_title') ?? "Meta title"}
-  //           sx={{ display: isSwitchOn ? 'none' : 'block' }} // Disable input when switch is on
-  //         />
-
-  //         <RHFTextField
-  //           name="slug"
-  //           label={t('seo.slug') ?? "Slug"}
-  //           sx={{ display: isSwitchOn ? 'none' : 'block' }} // Disable input when switch is on
-  //         />
-
-  //         <RHFTextField
-  //           name="ogTitle"
-  //           label={t('seo.og_title') ?? "OG title"}
-  //           sx={{ display: isSwitchOn ? 'none' : 'block' }} // Disable input when switch is on
-  //         />
-
-  //         <RHFAutocomplete
-  //           name="metaKeywords"
-  //           label={t('seo.keyword') ?? "Meta keywords"}
-  //           placeholder={t('seo.add_keyword') ?? "+ Keywords"}
-  //           multiple
-  //           freeSolo
-  //           disableCloseOnSelect
-  //           options={tagsList?.map((option) => option)}
-  //           getOptionLabel={(option) => option}
-  //           renderOption={(props, option) => (
-  //             <li {...props} key={option}>
-  //               {option}
-  //             </li>
-  //           )}
-  //           renderTags={(selected, getTagProps) =>
-  //             selected.map((option, index) => (
-  //               <Chip
-  //                 {...getTagProps({ index })}
-  //                 key={option}
-  //                 label={option}
-  //                 size="small"
-  //                 color="info"
-  //                 variant="soft"
-  //               />
-  //             ))
-  //           }
-  //           sx={{ display: isSwitchOn ? 'none' : 'block' }} // Disable autocomplete when switch is on
-  //         />
-
-  //         <RHFTextField
-  //           name="ogDescription"
-  //           label={t('seo.og_desc') ?? "OG description"}
-  //           fullWidth
-  //           multiline
-  //           rows={3}
-  //           sx={{ display: isSwitchOn ? 'none' : 'block' }} // Disable input when switch is on
-  //         />
-
-  //         <RHFTextField
-  //           name="metaDescription"
-  //           label={t('seo.meta_desc') ?? "Meta description"}
-  //           fullWidth
-  //           multiline
-  //           rows={3}
-  //           sx={{ display: isSwitchOn ? 'none' : 'block' }} // Disable input when switch is on
-  //         />
-
-  //         <RHFTextField
-  //           name="schema"
-  //           label={t('seo.schema') ?? "Schema Code"}
-  //           fullWidth
-  //           multiline
-  //           rows={3}
-  //           sx={{ display: isSwitchOn ? 'none' : 'block' }} // Disable input when switch is on
-  //         />
-  //       </Box>
-  //     </Stack>
-  //   </Grid>
-  // );
-
   if (loading) return (
     <Container 
       maxWidth={settings.themeStretch ? false : 'xl'}
@@ -875,7 +761,7 @@ export default function BlogNewEditForm({ currentPost }: Props) {
               {renderDetails}
             </BlankCard>
 
-            <BlankCard title={t('form.media') ?? "Media"} collapsible>
+            <BlankCard title={t('form.media') ?? "Media"}>
               {uploadComplete ? (
                 <ProgressBar percentage={uploadProgress} />
               ) : (
@@ -903,7 +789,7 @@ export default function BlogNewEditForm({ currentPost }: Props) {
               <StatusCard setStatusContent={setStatusContent}/>
 
               <BlankCard title={t('form.status.published') ?? "Submit"}>
-                {renderActions}
+                {uploadComplete ? <div /> : renderActions}
               </BlankCard>
           </Stack>
         </Grid>

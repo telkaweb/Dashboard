@@ -32,6 +32,13 @@ type Props = {
   onDeleteRow: (uniqueKey: string) => Promise<void>;
 };
 
+function cleanHtmlDescription(html: string): string {
+  const replaced = html.replace(/<br\s*\/?>/gi, '\n');
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = replaced;
+  return tempDiv.textContent || tempDiv.innerText || '';
+}
+
 export default function PostItemHorizontal({ post,onDeleteRow }: Props) {
   const popover = usePopover();
 
@@ -100,7 +107,7 @@ export default function PostItemHorizontal({ post,onDeleteRow }: Props) {
             </Link>
 
             <TextMaxLine variant="body2" sx={{ color: 'text.secondary' }} >
-              {description}
+              {cleanHtmlDescription(description)}
             </TextMaxLine>
           </Stack>
 

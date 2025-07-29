@@ -56,6 +56,19 @@ export type IBlogItem = {
   coverUrl: string;
   cover_id: string;
   covers: string[];
-  images: string[];
+  images: {
+    unique_key: string;
+    name: string;
+    path: string;
+    extension: string;
+    size: string;
+  }[];
+  files: {
+    unique_key: string;
+    name: string;
+    path: string;
+    extension: string;
+    size: string;
+  }[];
   images_prev: string[];
 };

@@ -37,8 +37,10 @@ interface Props extends CardProps {
   onDelete: VoidFunction;
 }
 
-export const convertSize = (sizeInKB: string): string => {
-  const size = parseFloat(sizeInKB.replace(/,/g, '')); // Remove commas and convert to number
+export const convertSize = (sizeInKB: unknown): string => {
+  if (typeof sizeInKB !== 'string') return "Invalid Size";
+
+  const size = parseFloat(sizeInKB.replace(/,/g, ''));
 
   if (Number.isNaN(size)) return "Invalid Size";
 
@@ -48,10 +50,9 @@ export const convertSize = (sizeInKB: string): string => {
   if (size >= 1024) {
     return `${(size / 1024).toFixed(2)} MB`;
   }
-  
+
   return `${size.toFixed(2)} KB`;
 };
-
 
 
 export default function FileManagerFileItem({
@@ -81,18 +82,27 @@ export default function FileManagerFileItem({
     copy(file.path);
   }, [copy, enqueueSnackbar, file.path,t]);
   
-  const renderIcon = (fileItem: { path: string; extension: string; name: string }) =>
-    imageExtensions.includes(fileItem.extension.toLowerCase()) ? (
-      <NextImage 
-        src={fileItem.path} 
-        alt={fileItem.name} 
-        width={36} 
-        height={36} 
-        style={{ borderRadius: "4px" }} 
-      />
-    ) : (
-      <FileThumbnail file={fileItem.extension} sx={{ width: 36, height: 36 }} />
-    );
+  const renderIcon = (fileItem: { path: string; extension: string | null; name: string }) => {
+    if (typeof fileItem.extension === 'string') {
+      const ext = fileItem.extension.toLowerCase();
+
+      if (imageExtensions.includes(ext)) {
+        return (
+          <NextImage 
+            src={fileItem.path} 
+            alt={fileItem.name} 
+            width={36} 
+            height={36} 
+            style={{ borderRadius: "4px" }} 
+          />
+        );
+      }
+
+      return <FileThumbnail file={ext} sx={{ width: 36, height: 36 }} />;
+    }
+
+    return <FileThumbnail file="unknown" sx={{ width: 36, height: 36 }} />;
+  };
   
 
   const renderAction = (

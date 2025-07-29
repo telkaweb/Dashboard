@@ -99,7 +99,8 @@ export const API_ENDPOINTS = {
   },
   upload:{
     chunk: 'api/v3/media/chunk/upload',
-    complete: 'api/v3/media/chunk/complete'
+    complete: 'api/v3/media/chunk/complete',
+    delete: (id: string) => `/api/v4/admin/media/${id}/delete`
   },
   section:{
     list: '/api/v4/admin/setting/section/list',
