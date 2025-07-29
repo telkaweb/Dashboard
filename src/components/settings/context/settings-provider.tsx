@@ -23,13 +23,17 @@ export function SettingsProvider({ children, defaultSettings }: SettingsProvider
   const [settings, setSettings] = useLocalStorage('settings', defaultSettings);
 
   const isArabic = localStorageGetItem('i18nextLng') === 'ar';
+  const isPersian = localStorageGetItem('i18nextLng') === 'fa';
 
   useEffect(() => {
     if (isArabic) {
       onChangeDirectionByLang('ar');
     }
+    if (isPersian) {
+      onChangeDirectionByLang('fa');
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isArabic]);
+  }, [isArabic,isPersian]);
 
   const onUpdate = useCallback(
     (name: string, value: string | boolean) => {
@@ -44,7 +48,7 @@ export function SettingsProvider({ children, defaultSettings }: SettingsProvider
   // Direction by lang
   const onChangeDirectionByLang = useCallback(
     (lang: string) => {
-      onUpdate('themeDirection', lang === 'ar' ? 'rtl' : 'ltr');
+        onUpdate('themeDirection', ['ar', 'fa'].includes(lang) ? 'rtl' : 'ltr');
     },
     [onUpdate]
   );
